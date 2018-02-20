@@ -113,7 +113,8 @@ class _ToVHDLConvertor(object):
                  "use_clauses",
                  "architecture",
                  "std_logic_ports",
-                 "initial_values"
+                 "initial_values",
+                 "write_keeps"
                  )
 
     def __init__(self):
@@ -128,6 +129,7 @@ class _ToVHDLConvertor(object):
         self.architecture = "MyHDL"
         self.std_logic_ports = False
         self.initial_values = False
+        self.write_keeps = False
 
     def __call__(self, func, *args, **kwargs):
         global _converting
@@ -240,6 +242,8 @@ class _ToVHDLConvertor(object):
         _writeFuncDecls(vfile)
         _writeTypeDefs(vfile)
         _writeSigDecls(vfile, intf, siglist, memlist)
+        if self.write_keeps:
+            _writeKeepDecls(vfile, intf, siglist, memlist)
         _writeCompDecls(vfile, compDecls)
         _convertGens(genlist, siglist, memlist, vfile)
         _writeModuleFooter(vfile, arch)
@@ -485,6 +489,33 @@ def _writeSigDecls(f, intf, siglist, memlist):
 
         print("type %s is array(0 to %s-1) of %s%s;" % (t, m.depth, p, r), file=f)
         print("signal %s: %s%s;" % (m.name, t, val_str), file=f)
+    print(file=f)
+
+
+def _writeKeepDecls(f, intf, siglist, memlist):
+    print("ATTRIBUTE keep : string;", file=f)
+    for s in siglist:
+        if not s._used:
+            continue
+        if s._name in intf.argnames:
+            continue
+        if s._driven:
+            if not s._read:
+                continue
+            print('ATTRIBUTE keep OF %s : signal is "true";' % s._name, file=f)
+    for m in memlist:
+        if not m._used:
+            continue
+        # infer attributes for the case of named signals in a list
+        for i, s in enumerate(m.mem):
+            if not m._driven and s._driven:
+                m._driven = s._driven
+            if not m._read and s._read:
+                m._read = s._read
+        if not m._driven and not m._read:
+            continue
+        print('ATTRIBUTE keep OF %s : signal is "true";' % m.name, file=f)
+
     print(file=f)
 
 
