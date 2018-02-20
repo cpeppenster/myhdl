@@ -1088,6 +1088,14 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             pre, suf = self.inferCast(node.vhd, node.vhdOri)
             opening, closing = "unsigned'(", ")"
             sep = " & "
+        elif f is rotate_left:
+            pre, suf = self.inferCast(node.vhd, node.vhdOri)
+            opening, closing = "rotate_left(", ")"
+            sep = ", "
+        elif f is rotate_right:
+            pre, suf = self.inferCast(node.vhd, node.vhdOri)
+            opening, closing = "rotate_right(", ")"
+            sep = ", "
         elif hasattr(node, 'tree'):
             pre, suf = self.inferCast(node.vhd, node.tree.vhd)
             fname = node.tree.name
@@ -2145,6 +2153,12 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
                     a.vhd = vhd_unsigned(a.vhd.size)
                 s += a.vhd.size
             node.vhd = vhd_unsigned(s)
+        elif f in [rotate_left, rotate_right]:
+            a = node.args[0]
+            if isinstance(a.vhd, vhd_signed):
+                node.vhd = vhd_signed(a.vhd.size)
+            else:
+                node.vhd = vhd_unsigned(a.vhd.size)
         elif f is bool:
             node.vhd = vhd_boolean()
         elif f in _flatten(integer_types, ord):
