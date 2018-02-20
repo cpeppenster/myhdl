@@ -2240,6 +2240,14 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
             if maybeNegative(right.vhd) or \
                (isinstance(op, ast.Sub) and not hasattr(node, 'isRhs')):
                 left.vhd = vhd_signed(left.vhd.size + 1)
+
+        # In case of a multiplication of a constant with a signed,
+        # change the constant to a signed to prevent VHDL to use the bit representation as signed
+        if isinstance(left.vhd, vhd_signed) and isinstance(right.vhd, vhd_int) and isinstance(op, ast.Mult):
+            right.vhd = vhd_signed(right.value.bit_length() + 1)
+        if isinstance(right.vhd, vhd_signed) and isinstance(left.vhd, vhd_int) and isinstance(op, ast.Mult):
+            left.vhd = vhd_signed(left.value.bit_length() + 1)
+
         l, r = left.vhd, right.vhd
         ls, rs = l.size, r.size
         if isinstance(r, vhd_vector) and isinstance(l, vhd_vector):
