@@ -77,6 +77,12 @@ def _getCallInfo():
             if len(stack) > 5:
                 callerrec = stack[5]
 
+    # HACKY HACKY BUT IT WORKS CPEPPENSTER AND JLEUVEN
+    if name == 'createBlock':
+        funcrec = stack[4]
+        if len(stack) > 5:
+            callerrec = stack[5]
+
     name = funcrec[3]
     frame = funcrec[0]
     symdict = dict(frame.f_globals)
