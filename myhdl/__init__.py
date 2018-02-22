@@ -150,6 +150,7 @@ from ._concat import concat
 from ._intbv import intbv
 from ._modbv import modbv
 from ._join import join
+from ._rotate import rotate_left, rotate_right
 from ._Signal import posedge, negedge, Signal, SignalType
 from ._ShadowSignal import ConcatSignal
 from ._ShadowSignal import TristateSignal
