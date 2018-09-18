@@ -55,6 +55,8 @@ from myhdl.conversion._toVHDLPackage import _package
 from myhdl._util import _flatten
 from myhdl._compat import integer_types, class_types, StringIO
 from myhdl._ShadowSignal import _TristateSignal, _TristateDriver
+from myhdl.conversion._VHDLNameValidation import _nameValid
+
 
 from myhdl._block import _Block
 from myhdl._getHierarchy import _getHierarchy
@@ -252,17 +254,18 @@ class _ToVHDLConvertor(object):
         # tbfile.close()
 
         ### clean-up properly ###
-        self._cleanup(siglist)
+        self._cleanup(siglist, memlist)
 
         return h.top
 
-    def _cleanup(self, siglist):
-        # clean up signal names
+    def _cleanup(self, siglist, memlist):
+        # clean up signals
         for sig in siglist:
             sig._clear()
-#             sig._name = None
-#             sig._driven = False
-#             sig._read = False
+        for mem in memlist:
+            mem.name = None 
+            for s in mem.mem:
+                s._clear()
 
         # clean up attributes
         self.name = None
@@ -357,6 +360,8 @@ def _writeModuleHeader(f, intf, needPck, lib, arch, useClauses, doc, stdLogicPor
             pt = st = _getTypeString(s)
             if convertPort:
                 pt = "std_logic_vector"
+             # Check if VHDL keyword or reused name
+            _nameValid(s._name)
             if s._driven:
                 if s._read:
                     if not isinstance(s, _TristateSignal):
@@ -443,6 +448,8 @@ def _writeSigDecls(f, intf, siglist, memlist):
             print("signal %s: %s%s%s;" % (s._name, p, r, val_str), file=f)
 
         elif s._read:
+            # Check if VHDL keyword or reused name
+            _nameValid(s._name)
             # the original exception
             # raise ToVHDLError(_error.UndrivenSignal, s._name)
             # changed to a warning and a continuous assignment to a wire
@@ -462,6 +469,8 @@ def _writeSigDecls(f, intf, siglist, memlist):
                 m._read = s._read
         if not m._driven and not m._read:
             continue
+        # Check if VHDL keyword or reused name
+        _nameValid(m.name)
         r = _getRangeString(m.elObj)
         p = _getTypeString(m.elObj)
         t = "t_array_%s" % m.name
@@ -938,7 +947,10 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                 self.write(suf)
         if isinstance(obj, (_Signal, intbv)):
             if node.attr in ('min', 'max'):
+                pre, suf = self.inferCast(node.vhd, node.vhdOri)
+                self.write(pre)
                 self.write("%s" % node.obj)
+                self.write(suf)
         if isinstance(obj, EnumType):
             assert hasattr(obj, node.attr)
             e = getattr(obj, node.attr)
@@ -1062,7 +1074,10 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         elif f is len:
             val = self.getVal(node)
             self.require(node, val is not None, "cannot calculate len")
+            pre, suf = self.inferCast(node.vhd, node.vhdOri)
+            self.write(pre)
             self.write(repr(val))
+            self.write(suf)
             return
         elif f is now:
             pre, suf = self.inferCast(node.vhd, node.vhdOri)
@@ -1238,6 +1253,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         args = cf.args
         assert len(args) <= 3
         self.require(node, len(args) < 3, "explicit step not supported")
+        self.require(node, len(args) > 0, "at least one argument requested")
         if f is range:
             cmp = '<'
             op = 'to'
@@ -1861,12 +1877,12 @@ class _ConvertAlwaysSeqVisitor(_ConvertVisitor):
         senslist = self.tree.senslist
         edge = senslist[0]
         reset = self.tree.reset
-        async = reset is not None and reset.async
+        isasync = reset is not None and reset.isasync
         sigregs = self.tree.sigregs
         varregs = self.tree.varregs
         self.write("%s: process (" % self.tree.name)
         self.write(edge.sig)
-        if async:
+        if isasync:
             self.write(', ')
             self.write(reset)
         self.write(") is")
@@ -1876,7 +1892,7 @@ class _ConvertAlwaysSeqVisitor(_ConvertVisitor):
         self.writeline()
         self.write("begin")
         self.indent()
-        if not async:
+        if not isasync:
             self.writeline()
             self.write("if %s then" % edge._toVHDL())
             self.indent()
@@ -1893,7 +1909,7 @@ class _ConvertAlwaysSeqVisitor(_ConvertVisitor):
                 self.write("%s := %s;" % (n, _convertInitVal(reg, init)))
             self.dedent()
             self.writeline()
-            if async:
+            if isasync:
                 self.write("elsif %s then" % edge._toVHDL())
             else:
                 self.write("else")
@@ -1904,7 +1920,7 @@ class _ConvertAlwaysSeqVisitor(_ConvertVisitor):
             self.writeline()
             self.write("end if;")
             self.dedent()
-        if not async:
+        if not isasync:
             self.writeline()
             self.write("end if;")
             self.dedent()

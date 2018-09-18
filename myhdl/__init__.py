@@ -54,7 +54,6 @@ from __future__ import print_function
 
 __version__ = "1.0devhudl"
 
-
 class StopSimulation(Exception):
     """ Basic exception to stop a Simulation """
     pass
